@@ -54,15 +54,7 @@ class Session:
             "and any important patterns or considerations."
         )
         
-        context = ""
-        if target_file:
-            file_path = self.worktree_path / target_file
-            if file_path.exists() and file_path.is_file():
-                try:
-                    context = f"File: {target_file}\n{file_path.read_text()}"
-                except Exception as e:
-                    if self.verbose:
-                        print(f"Warning: Could not read file {target_file}: {e}")
+        context = self._get_file_context(target_file)
         
         try:
             response = self.ollama.generate(
@@ -81,6 +73,251 @@ class Session:
             
         except OllamaError as e:
             raise SessionError(f"Failed to generate explanation: {e}")
+    
+    def fix(self, prompt: str, error_message: Optional[str] = None, 
+            target_file: Optional[str] = None) -> str:
+        """Fix bugs or issues in code.
+        
+        Args:
+            prompt: Bug fix prompt
+            error_message: Specific error message to fix
+            target_file: Specific file to fix
+            
+        Returns:
+            Fix response with code changes
+        """
+        system_prompt = (
+            "You are a code assistant specialized in debugging and fixing code issues. "
+            "Analyze the code and error message, identify the root cause, and provide "
+            "a clear fix with explanation. Focus on correct, safe, and maintainable solutions."
+        )
+        
+        context = self._get_file_context(target_file)
+        if error_message:
+            context += f"\n\nError Message:\n{error_message}"
+        
+        try:
+            response = self.ollama.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                context=context
+            )
+            
+            if self.auto_commit:
+                commit_msg = f"OCA fix: {prompt}"
+                if target_file:
+                    commit_msg += f" (file: {target_file})"
+                if error_message:
+                    commit_msg += f" (error: {error_message[:50]}...)"
+                self._commit_session_log(commit_msg, "fix", prompt, response)
+            
+            return response
+            
+        except OllamaError as e:
+            raise SessionError(f"Failed to generate fix: {e}")
+    
+    def refactor(self, prompt: str, pattern: Optional[str] = None, 
+                 target_file: Optional[str] = None) -> str:
+        """Refactor code.
+        
+        Args:
+            prompt: Refactoring prompt
+            pattern: Specific pattern to refactor
+            target_file: Specific file to refactor
+            
+        Returns:
+            Refactored code response
+        """
+        system_prompt = (
+            "You are a code assistant specialized in refactoring. "
+            "Improve code quality, maintainability, and performance while "
+            "preserving functionality. Follow best practices and modern patterns."
+        )
+        
+        context = self._get_file_context(target_file)
+        if pattern:
+            context += f"\n\nRefactoring Pattern: {pattern}"
+        
+        try:
+            response = self.ollama.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                context=context
+            )
+            
+            if self.auto_commit:
+                commit_msg = f"OCA refactor: {prompt}"
+                if target_file:
+                    commit_msg += f" (file: {target_file})"
+                if pattern:
+                    commit_msg += f" (pattern: {pattern})"
+                self._commit_session_log(commit_msg, "refactor", prompt, response)
+            
+            return response
+            
+        except OllamaError as e:
+            raise SessionError(f"Failed to generate refactoring: {e}")
+    
+    def generate_tests(self, prompt: str, coverage: bool = False, 
+                      style: Optional[str] = None, target_file: Optional[str] = None) -> str:
+        """Generate tests for code.
+        
+        Args:
+            prompt: Test generation prompt
+            coverage: Whether to include coverage considerations
+            style: Test style (pytest, unittest, etc.)
+            target_file: Specific file/module to test
+            
+        Returns:
+            Generated test code
+        """
+        system_prompt = (
+            "You are a code assistant specialized in test generation. "
+            "Create comprehensive, well-structured tests that cover edge cases, "
+            "error conditions, and typical usage patterns. Write clear, maintainable tests."
+        )
+        
+        context = self._get_file_context(target_file)
+        if style:
+            context += f"\n\nTest Style: {style}"
+        if coverage:
+            context += "\n\nFocus on comprehensive test coverage including edge cases."
+        
+        try:
+            response = self.ollama.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                context=context
+            )
+            
+            if self.auto_commit:
+                commit_msg = f"OCA test: {prompt}"
+                if target_file:
+                    commit_msg += f" (file: {target_file})"
+                if style:
+                    commit_msg += f" (style: {style})"
+                self._commit_session_log(commit_msg, "test", prompt, response)
+            
+            return response
+            
+        except OllamaError as e:
+            raise SessionError(f"Failed to generate tests: {e}")
+    
+    def create_commit(self, message: Optional[str] = None, 
+                     commit_type: Optional[str] = None) -> str:
+        """Create descriptive commits.
+        
+        Args:
+            message: Custom commit message
+            commit_type: Commit type (feat, fix, docs, etc.)
+            
+        Returns:
+            Generated commit message or confirmation
+        """
+        system_prompt = (
+            "You are a Git commit message specialist. Analyze the changes and create "
+            "clear, descriptive commit messages following conventional commit format. "
+            "Focus on the 'why' and 'what' of the changes."
+        )
+        
+        # Get git status and diff for context
+        context = ""
+        try:
+            if self.git.has_changes():
+                # This would need to be implemented to get actual diff
+                context = "Changes detected in working directory."
+            else:
+                context = "No changes detected."
+        except Exception as e:
+            context = f"Could not analyze changes: {e}"
+        
+        if commit_type:
+            context += f"\n\nCommit Type: {commit_type}"
+        
+        prompt_text = message or "Analyze the changes and create an appropriate commit message"
+        
+        try:
+            response = self.ollama.generate(
+                prompt=prompt_text,
+                system_prompt=system_prompt,
+                context=context
+            )
+            
+            if self.auto_commit:
+                commit_msg = f"OCA commit: Generated commit message"
+                self._commit_session_log(commit_msg, "commit", prompt_text, response)
+            
+            return response
+            
+        except OllamaError as e:
+            raise SessionError(f"Failed to generate commit message: {e}")
+    
+    def search_code(self, prompt: str, regex: Optional[str] = None, 
+                   search_type: Optional[str] = None) -> str:
+        """Search codebase.
+        
+        Args:
+            prompt: Search prompt
+            regex: Regular expression pattern to search for
+            search_type: Search type (comment, function, class, etc.)
+            
+        Returns:
+            Search results and analysis
+        """
+        system_prompt = (
+            "You are a code search and analysis assistant. Help users find specific "
+            "code patterns, functions, classes, or concepts in their codebase. "
+            "Provide clear guidance on where to look and what to search for."
+        )
+        
+        context = ""
+        if regex:
+            context += f"Regex Pattern: {regex}\n"
+        if search_type:
+            context += f"Search Type: {search_type}\n"
+        
+        # In a real implementation, this would scan the codebase
+        context += "Codebase analysis would be performed here."
+        
+        try:
+            response = self.ollama.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                context=context
+            )
+            
+            if self.auto_commit:
+                commit_msg = f"OCA search: {prompt}"
+                if regex:
+                    commit_msg += f" (regex: {regex})"
+                self._commit_session_log(commit_msg, "search", prompt, response)
+            
+            return response
+            
+        except OllamaError as e:
+            raise SessionError(f"Failed to perform search: {e}")
+    
+    def _get_file_context(self, target_file: Optional[str]) -> str:
+        """Get context from a target file.
+        
+        Args:
+            target_file: Path to the target file
+            
+        Returns:
+            File content as context string
+        """
+        if not target_file:
+            return ""
+            
+        file_path = self.worktree_path / target_file
+        if file_path.exists() and file_path.is_file():
+            try:
+                return f"File: {target_file}\n{file_path.read_text()}"
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not read file {target_file}: {e}")
+        
+        return ""
     
     def _commit_session_log(self, commit_msg: str, command: str, 
                            prompt: str, response: str) -> None:
@@ -214,6 +451,11 @@ class SessionManager:
             from unittest.mock import Mock
             mock_session = Mock()
             mock_session.explain = lambda prompt, target_file=None: f"DRY RUN: Would explain '{prompt}'"
+            mock_session.fix = lambda prompt, error_message=None, target_file=None: f"DRY RUN: Would fix '{prompt}'"
+            mock_session.refactor = lambda prompt, pattern=None, target_file=None: f"DRY RUN: Would refactor '{prompt}'"
+            mock_session.generate_tests = lambda prompt, coverage=False, style=None, target_file=None: f"DRY RUN: Would generate tests '{prompt}'"
+            mock_session.create_commit = lambda message=None, commit_type=None: f"DRY RUN: Would create commit '{message or 'auto-generated'}'"
+            mock_session.search_code = lambda prompt, regex=None, search_type=None: f"DRY RUN: Would search '{prompt}'"
             yield mock_session
             return
         

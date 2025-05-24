@@ -6,7 +6,7 @@ from .core.session import SessionManager
 
 
 @click.group()
-@click.version_option()
+@click.version_option(version='0.1.0', package_name='ollama-code-assistant')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.option('--model', help='Specify Ollama model to use')
 @click.option('--branch', help='Custom branch name')
@@ -60,6 +60,126 @@ def explain(ctx: click.Context, prompt: str, file: Optional[str]) -> None:
     try:
         with session_manager.create_session() as session:
             result = session.explain(prompt, target_file=file)
+            click.echo(result)
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+        raise click.Abort()
+
+
+@cli.command()
+@click.argument('prompt')
+@click.option('--error', help='Specific error message to fix')
+@click.option('--file', help='Specific file to fix')
+@click.pass_context
+def fix(ctx: click.Context, prompt: str, error: Optional[str], file: Optional[str]) -> None:
+    """Fix bugs or issues in code."""
+    session_manager = SessionManager(
+        verbose=ctx.obj['verbose'],
+        model=ctx.obj['model'],
+        branch=ctx.obj['branch'],
+        auto_commit=not ctx.obj['no_commit'],
+        dry_run=ctx.obj['dry_run']
+    )
+    
+    try:
+        with session_manager.create_session() as session:
+            result = session.fix(prompt, error_message=error, target_file=file)
+            click.echo(result)
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+        raise click.Abort()
+
+
+@cli.command()
+@click.argument('prompt')
+@click.option('--pattern', help='Specific pattern to refactor')
+@click.option('--file', help='Specific file to refactor')
+@click.pass_context
+def refactor(ctx: click.Context, prompt: str, pattern: Optional[str], file: Optional[str]) -> None:
+    """Refactor code."""
+    session_manager = SessionManager(
+        verbose=ctx.obj['verbose'],
+        model=ctx.obj['model'],
+        branch=ctx.obj['branch'],
+        auto_commit=not ctx.obj['no_commit'],
+        dry_run=ctx.obj['dry_run']
+    )
+    
+    try:
+        with session_manager.create_session() as session:
+            result = session.refactor(prompt, pattern=pattern, target_file=file)
+            click.echo(result)
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+        raise click.Abort()
+
+
+@cli.command()
+@click.argument('prompt')
+@click.option('--coverage', is_flag=True, help='Generate tests with coverage')
+@click.option('--style', help='Test style (pytest, unittest, etc.)')
+@click.option('--file', help='Specific file/module to test')
+@click.pass_context
+def test(ctx: click.Context, prompt: str, coverage: bool, style: Optional[str], file: Optional[str]) -> None:
+    """Generate tests for code."""
+    session_manager = SessionManager(
+        verbose=ctx.obj['verbose'],
+        model=ctx.obj['model'],
+        branch=ctx.obj['branch'],
+        auto_commit=not ctx.obj['no_commit'],
+        dry_run=ctx.obj['dry_run']
+    )
+    
+    try:
+        with session_manager.create_session() as session:
+            result = session.generate_tests(prompt, coverage=coverage, style=style, target_file=file)
+            click.echo(result)
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+        raise click.Abort()
+
+
+@cli.command()
+@click.argument('message', required=False)
+@click.option('--type', 'commit_type', help='Commit type (feat, fix, docs, etc.)')
+@click.pass_context
+def commit(ctx: click.Context, message: Optional[str], commit_type: Optional[str]) -> None:
+    """Create descriptive commits."""
+    session_manager = SessionManager(
+        verbose=ctx.obj['verbose'],
+        model=ctx.obj['model'],
+        branch=ctx.obj['branch'],
+        auto_commit=not ctx.obj['no_commit'],
+        dry_run=ctx.obj['dry_run']
+    )
+    
+    try:
+        with session_manager.create_session() as session:
+            result = session.create_commit(message=message, commit_type=commit_type)
+            click.echo(result)
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+        raise click.Abort()
+
+
+@cli.command()
+@click.argument('prompt')
+@click.option('--regex', help='Regular expression pattern to search for')
+@click.option('--type', 'search_type', help='Search type (comment, function, class, etc.)')
+@click.pass_context
+def search(ctx: click.Context, prompt: str, regex: Optional[str], search_type: Optional[str]) -> None:
+    """Search codebase."""
+    session_manager = SessionManager(
+        verbose=ctx.obj['verbose'],
+        model=ctx.obj['model'],
+        branch=ctx.obj['branch'],
+        auto_commit=not ctx.obj['no_commit'],
+        dry_run=ctx.obj['dry_run']
+    )
+    
+    try:
+        with session_manager.create_session() as session:
+            result = session.search_code(prompt, regex=regex, search_type=search_type)
             click.echo(result)
     except Exception as e:
         click.echo(f"✗ Error: {e}", err=True)
