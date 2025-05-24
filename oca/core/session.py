@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import yaml
 
 from ..utils.git import GitWrapper, GitError
+from ..utils.files import FileScanner
 from .ollama import OllamaClient, OllamaError
 
 
@@ -224,10 +225,11 @@ class Session:
         context = ""
         try:
             if self.git.has_changes():
-                # This would need to be implemented to get actual diff
-                context = "Changes detected in working directory."
+                status = self.git.get_status()
+                diff = self.git.get_diff()
+                context = f"Git Status:\n{status}\n\nGit Diff:\n{diff[:2000]}..."  # Limit diff size
             else:
-                context = "No changes detected."
+                context = "No changes detected in working directory."
         except Exception as e:
             context = f"Could not analyze changes: {e}"
         
@@ -276,8 +278,73 @@ class Session:
         if search_type:
             context += f"Search Type: {search_type}\n"
         
-        # In a real implementation, this would scan the codebase
-        context += "Codebase analysis would be performed here."
+        # Perform actual codebase scanning
+        try:
+            scanner = FileScanner(self.worktree_path)
+            
+            if search_type == "function":
+                # Search for functions
+                functions_found = []
+                for file_path in scanner.scan_files(['.py', '.js', '.ts']):
+                    functions = scanner.find_functions(file_path)
+                    if functions:
+                        relative_path = str(file_path.relative_to(self.worktree_path))
+                        functions_found.append(f"{relative_path}: {len(functions)} functions")
+                        for func in functions[:3]:  # Limit to first 3
+                            functions_found.append(f"  - {func['name']} (line {func['line']})")
+                
+                if functions_found:
+                    context += f"\nFunctions found:\n" + "\n".join(functions_found[:20])  # Limit output
+                else:
+                    context += "\nNo functions found in codebase."
+            
+            elif search_type == "class":
+                # Search for classes
+                classes_found = []
+                for file_path in scanner.scan_files(['.py']):
+                    classes = scanner.find_classes(file_path)
+                    if classes:
+                        relative_path = str(file_path.relative_to(self.worktree_path))
+                        classes_found.append(f"{relative_path}: {len(classes)} classes")
+                        for cls in classes[:3]:  # Limit to first 3
+                            classes_found.append(f"  - {cls['name']} (line {cls['line']})")
+                
+                if classes_found:
+                    context += f"\nClasses found:\n" + "\n".join(classes_found[:20])  # Limit output
+                else:
+                    context += "\nNo classes found in codebase."
+            
+            elif regex:
+                # Search using regex
+                search_results = scanner.search_in_files(regex, is_regex=True)
+                if search_results:
+                    context += f"\nRegex search results:\n"
+                    for file_path, matches in list(search_results.items())[:10]:  # Limit files
+                        context += f"{file_path}: {len(matches)} matches\n"
+                        for match in matches[:3]:  # Limit matches per file
+                            context += f"  Line {match['line']}: {match['content'][:100]}\n"
+                else:
+                    context += f"\nNo matches found for regex: {regex}"
+            
+            else:
+                # General text search based on prompt keywords
+                # Extract keywords from prompt for search
+                keywords = [word for word in prompt.lower().split() 
+                           if len(word) > 3 and word not in ['find', 'search', 'where', 'what', 'code']]
+                
+                if keywords:
+                    search_results = scanner.search_in_files(keywords[0])  # Search first keyword
+                    if search_results:
+                        context += f"\nSearch results for '{keywords[0]}':\n"
+                        for file_path, matches in list(search_results.items())[:5]:  # Limit files
+                            context += f"{file_path}: {len(matches)} matches\n"
+                    else:
+                        context += f"\nNo results found for keyword: {keywords[0]}"
+                else:
+                    context += "\nGeneral codebase analysis requested."
+        
+        except Exception as e:
+            context += f"\nError during codebase scan: {e}"
         
         try:
             response = self.ollama.generate(

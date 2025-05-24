@@ -171,3 +171,49 @@ class GitWrapper:
             return bool(result.stdout.strip())
         except GitError:
             return False
+    
+    def get_diff(self, staged: bool = False) -> str:
+        """Get diff of changes.
+        
+        Args:
+            staged: Whether to get staged changes only
+            
+        Returns:
+            Diff output as string
+        """
+        try:
+            args = ['diff']
+            if staged:
+                args.append('--cached')
+            result = self._run_git(args)
+            return result.stdout
+        except GitError:
+            return ""
+    
+    def get_status(self) -> str:
+        """Get status of working directory.
+        
+        Returns:
+            Status output as string
+        """
+        try:
+            result = self._run_git(['status', '--porcelain'])
+            return result.stdout
+        except GitError:
+            return ""
+    
+    def get_file_content(self, file_path: str, ref: str = "HEAD") -> str:
+        """Get content of a file at a specific ref.
+        
+        Args:
+            file_path: Path to the file
+            ref: Git reference (default: HEAD)
+            
+        Returns:
+            File content as string
+        """
+        try:
+            result = self._run_git(['show', f'{ref}:{file_path}'])
+            return result.stdout
+        except GitError:
+            return ""
