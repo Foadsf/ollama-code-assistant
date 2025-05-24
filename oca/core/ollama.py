@@ -15,13 +15,13 @@ class OllamaClient:
     """Client for interacting with Ollama API."""
     
     def __init__(self, model: str = "codellama", api_url: str = "http://localhost:11434",
-                 timeout: int = 120, max_tokens: int = 4096) -> None:
+                 timeout: int = 180, max_tokens: int = 4096) -> None:  # Increased default timeout
         """Initialize Ollama client.
         
         Args:
             model: Model name to use
             api_url: Ollama API URL
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (default 180s for slow responses)
             max_tokens: Maximum tokens in response
         """
         self.model = model
@@ -29,6 +29,7 @@ class OllamaClient:
         self.timeout = timeout
         self.max_tokens = max_tokens
         self.mock_mode = os.getenv('OCA_MOCK_OLLAMA', 'false').lower() == 'true'
+        self.debug_mode = os.getenv('OCA_DEBUG', 'false').lower() == 'true'
     
     def generate(self, prompt: str, system_prompt: Optional[str] = None,
                  context: Optional[str] = None) -> str:
@@ -65,23 +66,77 @@ class OllamaClient:
             }
         }
         
+        # Debug information
+        url = f"{self.api_url}/api/generate"
+        headers = {"Content-Type": "application/json"}
+        
+        if self.debug_mode:
+            print(f"🔍 DEBUG: Ollama API Call")
+            print(f"📍 URL: {url}")
+            print(f"📋 Payload: {json.dumps(payload, indent=2)}")
+            print(f"📦 Headers: {headers}")
+            print(f"⏱️  Timeout: {self.timeout}s")
+            print(f"🔄 Request about to be sent...")
+        
         try:
             response = requests.post(
-                f"{self.api_url}/api/generate",
+                url,
                 json=payload,
+                headers=headers,
                 timeout=self.timeout
             )
+            
+            if self.debug_mode:
+                print(f"📡 Response Status: {response.status_code}")
+                print(f"📄 Response Headers: {dict(response.headers)}")
+            
+            if response.status_code != 200:
+                print(f"❌ Error Response Body: {response.text}")
+                print(f"🔍 Full Response: {response}")
+            
             response.raise_for_status()
             
             result = response.json()
-            return result.get("response", "").strip()
+            if self.debug_mode:
+                print(f"✅ Response JSON: {json.dumps(result, indent=2)}")
             
+            # Extract response field
+            if "response" in result:
+                response_text = result["response"].strip()
+                if self.debug_mode:
+                    print(f"📝 Extracted Response: {response_text[:100]}...")
+                return response_text
+            else:
+                error_msg = f"No 'response' field in JSON. Available fields: {list(result.keys())}"
+                print(f"⚠️  Warning: {error_msg}")
+                return str(result)
+            
+        except requests.exceptions.HTTPError as e:
+            error_msg = f"HTTP Error {response.status_code}: {e}"
+            if hasattr(response, 'text'):
+                error_msg += f"\nResponse body: {response.text}"
+            print(f"🚨 HTTPError: {error_msg}")
+            raise OllamaError(error_msg)
+        except requests.exceptions.ConnectionError as e:
+            error_msg = f"Connection failed to {url}: {e}"
+            print(f"🚨 ConnectionError: {error_msg}")
+            raise OllamaError(error_msg)
+        except requests.exceptions.Timeout as e:
+            error_msg = f"Request timed out after {self.timeout}s: {e}"
+            print(f"🚨 TimeoutError: {error_msg}")
+            raise OllamaError(error_msg)
         except requests.exceptions.RequestException as e:
-            raise OllamaError(f"Failed to connect to Ollama: {e}")
+            error_msg = f"Request failed: {e}"
+            print(f"🚨 RequestException: {error_msg}")
+            raise OllamaError(error_msg)
         except (json.JSONDecodeError, ValueError) as e:
-            raise OllamaError(f"Invalid response from Ollama: {e}")
-        except KeyError as e:
-            raise OllamaError(f"Unexpected response format: {e}")
+            error_msg = f"Invalid JSON response: {e}\nResponse text: {response.text if 'response' in locals() else 'N/A'}"
+            print(f"🚨 JSONDecodeError: {error_msg}")
+            raise OllamaError(error_msg)
+        except Exception as e:
+            error_msg = f"Unexpected error: {e}"
+            print(f"🚨 UnexpectedError: {error_msg}")
+            raise OllamaError(error_msg)
     
     def _generate_mock_response(self, prompt: str, system_prompt: Optional[str] = None,
                                context: Optional[str] = None) -> str:
@@ -304,3 +359,61 @@ Please provide more specific details about what you'd like me to help you with."
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
+    
+    def test_connection(self) -> Dict[str, Any]:
+        """Test connection to Ollama and return detailed information.
+        
+        Returns:
+            Dictionary with connection test results
+        """
+        result = {
+            "connected": False,
+            "api_url": self.api_url,
+            "model": self.model,
+            "timeout": self.timeout,
+            "error": None,
+            "models": [],
+            "response_time": None
+        }
+        
+        if self.mock_mode:
+            result["connected"] = True
+            result["models"] = ["codellama", "llama2"]
+            result["mock_mode"] = True
+            return result
+        
+        import time
+        start_time = time.time()
+        
+        try:
+            print(f"🔍 Testing connection to {self.api_url}")
+            
+            # Test /api/tags endpoint
+            tags_url = f"{self.api_url}/api/tags"
+            print(f"📡 Testing endpoint: {tags_url}")
+            
+            response = requests.get(tags_url, timeout=10)
+            result["response_time"] = time.time() - start_time
+            
+            print(f"📊 Status Code: {response.status_code}")
+            print(f"📄 Response Headers: {dict(response.headers)}")
+            
+            if response.status_code == 200:
+                result["connected"] = True
+                try:
+                    data = response.json()
+                    result["models"] = [model.get("name", "unknown") for model in data.get("models", [])]
+                    print(f"✅ Available models: {result['models']}")
+                except json.JSONDecodeError as e:
+                    print(f"⚠️  Could not parse JSON: {e}")
+                    print(f"📄 Raw response: {response.text}")
+            else:
+                result["error"] = f"HTTP {response.status_code}: {response.text}"
+                print(f"❌ Connection failed: {result['error']}")
+                
+        except requests.exceptions.RequestException as e:
+            result["error"] = str(e)
+            result["response_time"] = time.time() - start_time
+            print(f"🚨 Connection error: {e}")
+        
+        return result

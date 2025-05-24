@@ -186,6 +186,40 @@ def search(ctx: click.Context, prompt: str, regex: Optional[str], search_type: O
         raise click.Abort()
 
 
+@cli.command()
+@click.pass_context
+def test_ollama(ctx: click.Context) -> None:
+    """Test connection to Ollama."""
+    from .core.ollama import OllamaClient
+    
+    model = ctx.obj['model'] or 'codellama'
+    client = OllamaClient(model=model)
+    
+    click.echo("🔍 Testing Ollama connection...")
+    result = client.test_connection()
+    
+    if result["connected"]:
+        click.echo(f"✅ Successfully connected to Ollama!")
+        click.echo(f"📍 API URL: {result['api_url']}")
+        click.echo(f"⏱️  Response time: {result['response_time']:.2f}s")
+        click.echo(f"🤖 Available models: {', '.join(result['models'])}")
+        
+        if ctx.obj['model'] and ctx.obj['model'] not in result['models']:
+            click.echo(f"⚠️  Warning: Requested model '{ctx.obj['model']}' not found!")
+            click.echo(f"💡 Try one of: {', '.join(result['models'])}")
+    else:
+        click.echo(f"❌ Failed to connect to Ollama")
+        click.echo(f"📍 API URL: {result['api_url']}")
+        click.echo(f"🚨 Error: {result['error']}")
+        
+        # Suggestions for common issues
+        click.echo("\n💡 Troubleshooting tips:")
+        click.echo("1. Make sure Ollama is running: ollama serve")
+        click.echo("2. Check if the API URL is correct")
+        click.echo("3. Verify firewall/network settings")
+        click.echo("4. Try: curl http://localhost:11434/api/tags")
+
+
 def main() -> None:
     """Main entry point."""
     cli()
