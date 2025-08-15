@@ -201,7 +201,7 @@ class TestGitWrapper:
         )
         
         git = GitWrapper(Path("/test"))
-        git.commit("test commit")
+        git.commit("test commit", add_all=True)
         
         # Should be called twice: git add . and git commit
         assert mock_run.call_count == 2

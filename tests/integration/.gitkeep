@@ -1,0 +1,11 @@
+# This directory is for integration tests.
+# Integration tests should test the interaction between different components
+# of the OCA application, such as the CLI, SessionManager, and GitWrapper.
+#
+# These tests are different from unit tests in that they use real (or close to real)
+# dependencies, like a temporary Git repository on the filesystem.
+#
+# Example test cases:
+# - `test_init_command_creates_git_repo`
+# - `test_session_creates_worktree_and_branch`
+# - `test_full_end_to_end_fix_command` (with mocked Ollama)

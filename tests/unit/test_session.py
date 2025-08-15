@@ -90,7 +90,6 @@ class TestSession:
         """Test explain command with auto-commit enabled."""
         worktree_path = Path("/tmp/worktree")
         git_wrapper = Mock(spec=GitWrapper)
-        git_wrapper.has_changes.return_value = True
         ollama_client = Mock(spec=OllamaClient)
         ollama_client.generate.return_value = "Code explanation"
         
@@ -101,16 +100,11 @@ class TestSession:
             auto_commit=True
         )
         
-        with patch('builtins.open', mock_open()) as mock_file:
-            with patch.object(Path, 'mkdir'):
-                result = session.explain("Explain the code")
+        result = session.explain("Explain the code")
         
         assert result == "Code explanation"
-        git_wrapper.commit.assert_called_once()
-        # Check that commit message includes the prompt
-        commit_msg = git_wrapper.commit.call_args[0][0]
-        assert "OCA explain" in commit_msg
-        assert "Explain the code" in commit_msg
+        # Explain should be a read-only operation and not create commits
+        git_wrapper.commit.assert_not_called()
 
 
 class TestSessionManager:

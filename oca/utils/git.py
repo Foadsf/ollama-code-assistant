@@ -152,17 +152,30 @@ class GitWrapper:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return f"{prefix}/session-{timestamp}"
     
-    def commit(self, message: str, add_all: bool = True) -> None:
+    def commit(self, message: str, add_all: bool = False) -> None:
         """Create a commit.
         
         Args:
             message: Commit message
-            add_all: Whether to add all changes before committing
+            add_all: Whether to 'git add .' before committing.
+                     It is generally safer to stage changes explicitly.
         """
         if add_all:
-            self._run_git(['add', '.'])
+            self.stage_all()
         
         self._run_git(['commit', '-m', message])
+
+    def stage_all(self) -> None:
+        """Stage all changes in the repository."""
+        self._run_git(['add', '.'])
+
+    def stage_file(self, file_path: Path) -> None:
+        """Stage a single file."""
+        self._run_git(['add', str(file_path)])
+
+    def has_staged_changes(self) -> bool:
+        """Check if there are staged changes."""
+        return bool(self.get_diff(staged=True))
     
     def has_changes(self) -> bool:
         """Check if there are uncommitted changes."""

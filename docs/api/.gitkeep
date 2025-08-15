@@ -1,0 +1,13 @@
+# This directory will contain the API documentation for OCA.
+#
+# The documentation can be auto-generated from docstrings using a tool
+# like Sphinx, MkDocs with `mkdocstrings`, or another documentation generator.
+#
+# The goal is to have comprehensive documentation for all public modules,
+# classes, and functions, making it easy for contributors to understand
+# the codebase.
+#
+# Example generated files might be:
+# - `oca.core.session.md`
+# - `oca.core.editor.md`
+# - `oca.utils.git.md`

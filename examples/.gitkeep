@@ -1,0 +1,11 @@
+# This directory will contain usage examples for OCA.
+# These can be simple scripts or markdown files demonstrating how to
+# use the various commands and features of the tool.
+#
+# Examples could include:
+# - `basic_refactoring.sh`: A shell script showing the refactor command.
+# - `test_generation.py`: A Python script using OCA to generate its own tests.
+# - `advanced_search.md`: A tutorial on using advanced search features.
+#
+# These examples are valuable for users and contributors to quickly
+# understand how to use OCA effectively.
