@@ -8,6 +8,7 @@ from .self_modifier import SelfModifier
 from .improvement_ui import ImprovementUI
 from .ollama import OllamaClient
 from .editor import CodeEditor
+from .memory import MemorySystem
 
 class SelfImprover:
     """Orchestrates the complete self-improvement workflow."""
@@ -20,6 +21,7 @@ class SelfImprover:
         editor = CodeEditor(root_path=self.root_path)
         self.modifier = SelfModifier(repo_path=self.root_path, ollama=ollama, editor=editor)
         self.ui = ImprovementUI()
+        self.memory = MemorySystem(memory_file=self.root_path / ".oca" / "memory.jsonl")
 
     def run_improvement_cycle(self, auto: bool, improvement_type: Optional[str], dry_run: bool):
         """Main entry point for a self-improvement cycle."""
@@ -28,6 +30,17 @@ class SelfImprover:
         try:
             self.console.print("\n🔍 Analyzing codebase for improvement opportunities...")
             opportunities = self.analyzer.identify_improvement_opportunities()
+
+            # Prioritize opportunities based on past success
+            self.console.print("💡 Analyzing past performance to prioritize tasks...")
+            success_patterns = self.memory.get_success_patterns()
+
+            def get_priority_score(opportunity):
+                imp_type = opportunity['type']
+                # Default to 50% success rate if no history exists
+                return success_patterns.get(imp_type, {}).get('success_rate', 50.0)
+
+            opportunities.sort(key=get_priority_score, reverse=True)
 
             if improvement_type:
                 opportunities = [opp for opp in opportunities if opp['type'] == improvement_type]
@@ -42,16 +55,18 @@ class SelfImprover:
                 return
 
             if not auto and selected_opportunities:
-                 # In interactive mode, the opportunities are already selected by the UI
                  pass
             elif auto and opportunities:
                 selected_opportunities = [opportunities[0]]
-            else: # Not auto and no selection from UI
+            else:
                 return
 
             for opp in selected_opportunities:
                 self.console.print(f"\n🤖 Applying improvement [bold yellow]'{opp['description']}'[/bold yellow]...")
                 result = self.modifier.apply_self_improvement(opp)
+
+                # Record the attempt in memory
+                self.memory.record_improvement_attempt(opp, result)
 
                 if not result['success']:
                     self.console.print(f"\n[bold red]Self-improvement failed: {result['reason']}[/bold red]")
