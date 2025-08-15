@@ -51,6 +51,7 @@ dev = [
 
 [project.scripts]
 oca = "oca.cli:main"
+oca-improve = "oca.cli_v2:self_improve"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/ollama-code-assistant"

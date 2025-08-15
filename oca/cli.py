@@ -8,12 +8,10 @@ from typing import Optional
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
+from rich.prompt import Prompt
 
 from .core.session import SessionManager
-from .core.self_analysis import SelfAnalyzer
-from .core.self_modifier import SelfModifier
-from .core.ollama import OllamaClient
-from .core.editor import CodeEditor
+from .core.self_improver import SelfImprover
 
 
 def _parse_code_from_response(response: str) -> Optional[str]:
@@ -213,118 +211,24 @@ def search(ctx: click.Context, prompt: str, regex: Optional[str], search_type: O
 @click.option('--auto', is_flag=True, help="Apply the highest priority safe improvement automatically.")
 @click.option('--type', 'improvement_type', help="Focus on a specific improvement type (e.g., documentation).")
 @click.option('--dry-run', is_flag=True, help="Show what would be improved without doing it.")
-@click.option('--plain-output', is_flag=True, hidden=True) # For testing
 @click.pass_context
-def self_improve(ctx: click.Context, auto: bool, improvement_type: Optional[str], dry_run: bool, plain_output: bool) -> None:
+def self_improve(ctx: click.Context, auto: bool, improvement_type: Optional[str], dry_run: bool) -> None:
     """Analyzes and improves OCA's own codebase."""
-    console = Console()
-    console.print("🤖 [bold green]OCA Self-Improvement Mode[/bold green] 🤖")
-
     try:
-        # Assuming oca is run from the root of its own repository
-        oca_root_path = Path.cwd()
-
-        analyzer = SelfAnalyzer(root_path=oca_root_path)
-
-        console.print("\n🔍 Analyzing codebase for improvement opportunities...")
-        opportunities = analyzer.identify_improvement_opportunities()
-
-        if not opportunities:
-            console.print("\n✅ No improvement opportunities found. Great job!")
-            return
-
-        if plain_output:
-            console.print(f"Found {len(opportunities)} improvement opportunities:")
-            for i, opp in enumerate(opportunities[:10]):
-                console.print(f"{i+1}: {opp['type']} - {opp['description']} in {opp['file_path']}:{opp['line_number']}")
-        else:
-            console.print(f"\nFound [bold yellow]{len(opportunities)}[/bold yellow] improvement opportunities:")
-            table = Table(show_header=True, header_style="bold magenta")
-            table.add_column("ID", style="dim", width=4)
-            table.add_column("Type", width=15)
-            table.add_column("Description")
-            table.add_column("File", style="cyan")
-            table.add_column("Line", style="yellow")
-            for i, opp in enumerate(opportunities[:10]):
-                table.add_row(str(i + 1), opp['type'], opp['description'], opp['file_path'], str(opp['line_number']))
-            console.print(table)
-
-        if dry_run or not auto:
-            if dry_run:
-                console.print("\n--dry-run enabled. No changes will be made.")
-            if not auto:
-                console.print("\n--auto not specified. Run with --auto to apply the first safe improvement.")
-            return
-
-        # --- Self-Modification Workflow ---
-        if improvement_type:
-            opportunities = [opp for opp in opportunities if opp['type'] == improvement_type]
-
-        if not opportunities:
-            console.print(f"\nNo opportunities of type '{improvement_type}' found.")
-            return
-
-        target_opp = opportunities[0]
-        console.print(f"\n🤖 Automatically applying first safe improvement:")
-        console.print(f"   [yellow]{target_opp['description']}[/yellow] in [cyan]{target_opp['file_path']}:{target_opp['line_number']}[/cyan]")
-
-        modifier = SelfModifier(repo_path=oca_root_path)
-        editor = CodeEditor(root_path=oca_root_path)
-        ollama = OllamaClient(model=ctx.obj['model'] or 'codellama')
-        original_branch = ""
-        branch_name = ""
-
-        try:
-            original_branch = modifier.git.get_current_branch()
-            branch_name = modifier.create_improvement_branch(target_opp)
-            console.print(f"✅ Created and checked out new branch: [bold blue]{branch_name}[/bold blue]")
-
-            console.print("🧠 Generating docstring with Ollama...")
-            file_path = oca_root_path / target_opp['file_path']
-            file_content = file_path.read_text()
-            prompt = f"{target_opp['suggested_fix']}\n\nHere is the full content of the file `{target_opp['file_path']}`. Please return the complete, modified file content in a single markdown code block.\n\n```python\n{file_content}\n```"
-            new_content_response = ollama.generate(prompt)
-            new_content = _parse_code_from_response(new_content_response)
-
-            if not new_content:
-                raise Exception("Failed to parse new content from Ollama response.")
-
-            console.print(f"✍️ Applying changes to [cyan]{target_opp['file_path']}[/cyan]...")
-            editor.apply_changes(Path(target_opp['file_path']), new_content)
-
-            console.print("🛡️ Running test suite to validate changes...")
-            pytest_path = Path(os.path.dirname(os.path.abspath(__file__))).parent / "venv" / "bin" / "pytest"
-            result = subprocess.run([str(pytest_path)], cwd=oca_root_path, capture_output=True, text=True)
-
-            if result.returncode == 0:
-                console.print("✅ [bold green]All tests passed![/bold green]")
-                commit_message = f"docs: {target_opp['description']}"
-                modifier.git.commit(commit_message, add_all=True)
-                console.print(f"📝 Committed changes with message: \"{commit_message}\"")
-                console.print("\n🎉 [bold green]Self-improvement successful![/bold green]")
-                console.print(f"Changes are on branch [bold blue]{branch_name}[/bold blue]. Please review and merge.")
-                modifier.git._run_git(['checkout', original_branch])
-            else:
-                console.print("❌ [bold red]Tests failed after applying changes.[/bold red]")
-                console.print("--- TEST OUTPUT ---")
-                console.print(result.stdout)
-                console.print(result.stderr)
-                console.print("⏪ Rolling back changes...")
-                modifier.git._run_git(['checkout', original_branch])
-                modifier.git._run_git(['branch', '-D', branch_name])
-                console.print("✅ Rollback complete.")
-
-        except Exception as e:
-            console.print(f"[bold red]An error occurred during self-modification: {e}[/bold red]")
-            if original_branch and branch_name:
-                try:
-                    modifier.git._run_git(['checkout', original_branch])
-                    modifier.git._run_git(['branch', '-D', branch_name])
-                except Exception as rollback_e:
-                    console.print(f"[bold red]Rollback also failed: {rollback_e}[/bold red]")
-
+        improver = SelfImprover(
+            root_path=Path.cwd(),
+            model_name=ctx.obj.get('model'),
+            verbose=ctx.obj.get('verbose', False)
+        )
+        improver.run_improvement_cycle(
+            auto=auto,
+            improvement_type=improvement_type,
+            dry_run=dry_run
+        )
     except Exception as e:
+        console = Console()
         console.print(f"[bold red]An error occurred during self-improvement: {e}[/bold red]")
+        raise click.Abort()
 
 
 @cli.command()

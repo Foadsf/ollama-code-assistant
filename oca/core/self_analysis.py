@@ -37,6 +37,7 @@ class SelfAnalyzer:
         """Generate concrete, actionable improvement tasks."""
         opportunities = []
         opportunities.extend(self._find_missing_docstrings())
+        opportunities.extend(self._find_missing_type_hints())
         return opportunities
 
     def _find_missing_docstrings(self) -> List[ImprovementOpportunity]:
@@ -59,6 +60,41 @@ class SelfAnalyzer:
                             "severity": "medium",
                             "estimated_effort": "low",
                             "suggested_fix": f"Add a comprehensive docstring to the '{func.name}' function explaining its purpose, arguments, and return value."
+                        })
+            except Exception:
+                continue
+        return opportunities
+
+    def _find_missing_type_hints(self) -> List[ImprovementOpportunity]:
+        """Finds functions missing argument or return type hints."""
+        opportunities = []
+        py_files = self.scanner.scan_files(extensions=['.py'])
+        for file_path in py_files:
+            try:
+                relative_path = file_path.relative_to(self.root_path)
+                tree = self.ast_tools.parse_python_file(file_path)
+                functions = self.ast_tools.find_functions(tree)
+                for func in functions:
+                    # Don't check __init__ for return type hint
+                    is_init = func.name == "__init__"
+                    missing_hints = []
+                    # Check arguments
+                    for arg in func.args.args:
+                        if not arg.annotation and arg.arg != 'self':
+                            missing_hints.append(f"argument '{arg.arg}'")
+                    # Check return type
+                    if not func.returns and not is_init:
+                        missing_hints.append("return value")
+
+                    if missing_hints:
+                        opportunities.append({
+                            "type": "type_hints",
+                            "description": f"Function '{func.name}' is missing type hints for: {', '.join(missing_hints)}.",
+                            "file_path": str(relative_path),
+                            "line_number": func.lineno,
+                            "severity": "medium",
+                            "estimated_effort": "low",
+                            "suggested_fix": f"Add type hints to the arguments and return value of the '{func.name}' function."
                         })
             except Exception:
                 continue
