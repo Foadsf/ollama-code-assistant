@@ -5,19 +5,23 @@ from typing import List, Dict, Any, TypedDict
 from oca.utils.files import FileScanner
 from oca.core.ast_tools import ASTTools
 
-# --- Placeholder Data Structures ---
+# --- Data Structures ---
 
-class Opportunity(TypedDict):
-    """Represents an opportunity for improvement."""
+class ImprovementOpportunity(TypedDict):
+    """Represents a specific, actionable improvement opportunity."""
+    type: str  # e.g., 'documentation', 'testing', 'refactoring'
     description: str
     file_path: str
     line_number: int
+    severity: str  # e.g., 'high', 'medium', 'low'
+    estimated_effort: str # e.g., 'low', 'medium', 'high'
+    suggested_fix: str
 
 class Feature(TypedDict):
     """Represents a potential new feature."""
     name: str
     description: str
-    priority: str # e.g., 'high', 'medium', 'low'
+    priority: str
 
 # --- Self Analyzer ---
 
@@ -28,6 +32,37 @@ class SelfAnalyzer:
         self.root_path = root_path
         self.scanner = FileScanner(self.root_path)
         self.ast_tools = ASTTools()
+
+    def identify_improvement_opportunities(self) -> List[ImprovementOpportunity]:
+        """Generate concrete, actionable improvement tasks."""
+        opportunities = []
+        opportunities.extend(self._find_missing_docstrings())
+        return opportunities
+
+    def _find_missing_docstrings(self) -> List[ImprovementOpportunity]:
+        """Finds all functions that are missing a docstring."""
+        opportunities = []
+        py_files = self.scanner.scan_files(extensions=['.py'])
+        for file_path in py_files:
+            try:
+                # Make sure we are using a path relative to the project root for display
+                relative_path = file_path.relative_to(self.root_path)
+                tree = self.ast_tools.parse_python_file(file_path)
+                functions = self.ast_tools.find_functions(tree)
+                for func in functions:
+                    if not ast.get_docstring(func):
+                        opportunities.append({
+                            "type": "documentation",
+                            "description": f"Function '{func.name}' is missing a docstring.",
+                            "file_path": str(relative_path),
+                            "line_number": func.lineno,
+                            "severity": "medium",
+                            "estimated_effort": "low",
+                            "suggested_fix": f"Add a comprehensive docstring to the '{func.name}' function explaining its purpose, arguments, and return value."
+                        })
+            except Exception:
+                continue
+        return opportunities
 
     def analyze_code_quality(self) -> Dict[str, Any]:
         """Analyze OCA's code quality metrics."""
@@ -41,7 +76,7 @@ class SelfAnalyzer:
     def _calculate_complexity(self) -> Dict[str, Any]:
         """
         Calculates cyclomatic complexity of the codebase.
-        NOTE: This is a placeholder. A real implementation would use a library like 'radon'.
+        NOTE: This is a placeholder.
         """
         print("Warning: Complexity calculation is a placeholder.")
         return {"average_complexity": 0, "high_complexity_functions": []}
@@ -49,8 +84,7 @@ class SelfAnalyzer:
     def _check_test_coverage(self) -> Dict[str, Any]:
         """
         Checks test coverage by running pytest.
-        NOTE: This is a placeholder. A real implementation would run pytest
-        and parse the coverage report.
+        NOTE: This is a placeholder.
         """
         print("Warning: Test coverage check is a placeholder.")
         return {"coverage_percentage": 0.0, "uncovered_files": []}
@@ -59,7 +93,6 @@ class SelfAnalyzer:
         """Analyzes the documentation coverage (docstrings)."""
         total_funcs = 0
         funcs_with_docs = 0
-
         py_files = self.scanner.scan_files(extensions=['.py'])
         for file_path in py_files:
             try:
@@ -70,11 +103,8 @@ class SelfAnalyzer:
                     if ast.get_docstring(func):
                         funcs_with_docs += 1
             except Exception:
-                # Ignore files that can't be parsed
                 continue
-
         doc_coverage = (funcs_with_docs / total_funcs * 100) if total_funcs > 0 else 100
-
         return {
             "total_functions": total_funcs,
             "functions_with_docstrings": funcs_with_docs,
@@ -97,19 +127,9 @@ class SelfAnalyzer:
                             all_imports.add(node.module.split('.')[0])
             except Exception:
                 continue
-
         local_modules = {"oca"}
         external_imports = sorted(list(all_imports - local_modules))
-
         return {"dependencies": external_imports, "count": len(external_imports)}
-
-    def identify_improvement_opportunities(self) -> List[Opportunity]:
-        """
-        Find specific areas that could be improved.
-        NOTE: This is a placeholder.
-        """
-        print("Warning: Improvement opportunity identification is a placeholder.")
-        return []
 
     def suggest_next_features(self) -> List[Feature]:
         """

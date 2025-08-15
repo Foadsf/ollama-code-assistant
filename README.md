@@ -223,6 +223,15 @@ oca search "Where is user authentication handled?"
 oca search --regex "TODO|FIXME" --type comment
 ```
 
+#### `self-improve` - Improve OCA's own codebase
+```bash
+# Find and list potential improvements
+oca self-improve --dry-run
+
+# Automatically apply the first safe improvement (e.g., adding a docstring)
+oca self-improve --auto --type documentation
+```
+
 ### Global Options
 - `--model MODEL` - Specify Ollama model to use
 - `--branch BRANCH` - Custom branch name (default: auto-generated)
