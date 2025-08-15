@@ -203,13 +203,14 @@ class Session:
             raise SessionError(f"Failed to generate or apply commit message: {e}")
     
     def search_code(self, prompt: str, regex: Optional[str] = None,
-                    search_type: Optional[str] = None) -> str:
+                   search_type: Optional[str] = None) -> str:
         """Search codebase."""
         system_prompt = (
             "You are a code search and analysis assistant. Help users find specific "
             "code patterns, functions, classes, or concepts in their codebase. "
             "Provide clear guidance on where to look and what to search for."
         )
+
         context = ""
         if regex:
             context += f"Regex Pattern: {regex}\n"
@@ -218,25 +219,59 @@ class Session:
         
         try:
             scanner = FileScanner(self.worktree_path)
+
             if search_type == "function":
-                # Implementation can be improved later
-                context += "\nFunction search is a placeholder."
+                functions_found = []
+                for file_path in scanner.scan_files(['.py', '.js', '.ts']):
+                    functions = scanner.find_functions(file_path)
+                    if functions:
+                        relative_path = str(file_path.relative_to(self.worktree_path))
+                        functions_found.append(f"{relative_path}: {len(functions)} functions")
+                        for func in functions[:3]:
+                            functions_found.append(f"  - {func['name']} (line {func['line']})")
+                if functions_found:
+                    context += f"\nFunctions found:\n" + "\n".join(functions_found[:20])
+                else:
+                    context += "\nNo functions found in codebase."
+
             elif search_type == "class":
-                context += "\nClass search is a placeholder."
+                classes_found = []
+                for file_path in scanner.scan_files(['.py']):
+                    classes = scanner.find_classes(file_path)
+                    if classes:
+                        relative_path = str(file_path.relative_to(self.worktree_path))
+                        classes_found.append(f"{relative_path}: {len(classes)} classes")
+                        for cls in classes[:3]:
+                            classes_found.append(f"  - {cls['name']} (line {cls['line']})")
+                if classes_found:
+                    context += f"\nClasses found:\n" + "\n".join(classes_found[:20])
+                else:
+                    context += "\nNo classes found in codebase."
+
             elif regex:
                 search_results = scanner.search_in_files(regex, is_regex=True)
                 if search_results:
                     context += f"\nRegex search results:\n"
                     for file_path, matches in list(search_results.items())[:10]:
                         context += f"{file_path}: {len(matches)} matches\n"
+                        for match in matches[:3]:
+                            context += f"  Line {match['line']}: {match['content'][:100]}\n"
+                else:
+                    context += f"\nNo matches found for regex: {regex}"
+
             else:
-                keywords = [word for word in prompt.lower().split() if len(word) > 3]
+                keywords = [word for word in prompt.lower().split() if len(word) > 3 and word not in ['find', 'search', 'where', 'what', 'code']]
                 if keywords:
                     search_results = scanner.search_in_files(keywords[0])
                     if search_results:
                         context += f"\nSearch results for '{keywords[0]}':\n"
                         for file_path, matches in list(search_results.items())[:5]:
                             context += f"{file_path}: {len(matches)} matches\n"
+                    else:
+                        context += f"\nNo results found for keyword: {keywords[0]}"
+                else:
+                    context += "\nGeneral codebase analysis requested."
+
         except Exception as e:
             context += f"\nError during codebase scan: {e}"
 

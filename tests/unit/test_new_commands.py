@@ -120,15 +120,75 @@ class TestNewSessionCommands:
         result = self.session.create_commit()
         assert "Auto-commit is enabled" in result
 
-    def test_search_code_basic(self):
-        """Test basic code search."""
-        self.ollama_client.generate.return_value = "Found authentication functions in auth.py"
-        with patch('oca.core.session.FileScanner'):
-            result = self.session.search_code("Find authentication functions")
-        
-        assert result == "Found authentication functions in auth.py"
+    @patch('oca.core.session.FileScanner')
+    def test_search_code_regex(self, mock_scanner_class):
+        """Test search_code with a regex pattern."""
+        mock_scanner = mock_scanner_class.return_value
+        mock_scanner.search_in_files.return_value = {
+            "file1.py": [{"line": 10, "content": "TODO: fix this"}]
+        }
+        self.ollama_client.generate.return_value = "Found a TODO"
+
+        result = self.session.search_code("Find todos", regex="TODO")
+
+        assert result == "Found a TODO"
+        mock_scanner.search_in_files.assert_called_once_with("TODO", is_regex=True)
         call_args = self.ollama_client.generate.call_args
-        assert "code search and analysis assistant" in call_args[1]['system_prompt']
+        assert "Regex Pattern: TODO" in call_args[1]['context']
+        assert "Regex search results:" in call_args[1]['context']
+        assert "file1.py: 1 matches" in call_args[1]['context']
+
+    @patch('oca.core.session.FileScanner')
+    def test_search_code_function(self, mock_scanner_class):
+        """Test search_code with search_type='function'."""
+        mock_scanner = mock_scanner_class.return_value
+        file_path = self.worktree_path / "file1.py"
+        mock_scanner.scan_files.return_value = [file_path]
+        mock_scanner.find_functions.return_value = [{"name": "my_func", "line": 5}]
+        self.ollama_client.generate.return_value = "Found a function"
+
+        result = self.session.search_code("Find functions", search_type="function")
+
+        assert result == "Found a function"
+        mock_scanner.find_functions.assert_called_once_with(file_path)
+        call_args = self.ollama_client.generate.call_args
+        assert "Search Type: function" in call_args[1]['context']
+        assert "Functions found:" in call_args[1]['context']
+        assert "my_func (line 5)" in call_args[1]['context']
+
+    @patch('oca.core.session.FileScanner')
+    def test_search_code_class(self, mock_scanner_class):
+        """Test search_code with search_type='class'."""
+        mock_scanner = mock_scanner_class.return_value
+        file_path = self.worktree_path / "file1.py"
+        mock_scanner.scan_files.return_value = [file_path]
+        mock_scanner.find_classes.return_value = [{"name": "MyClass", "line": 2}]
+        self.ollama_client.generate.return_value = "Found a class"
+
+        result = self.session.search_code("Find classes", search_type="class")
+
+        assert result == "Found a class"
+        mock_scanner.find_classes.assert_called_once_with(file_path)
+        call_args = self.ollama_client.generate.call_args
+        assert "Search Type: class" in call_args[1]['context']
+        assert "Classes found:" in call_args[1]['context']
+        assert "MyClass (line 2)" in call_args[1]['context']
+
+    @patch('oca.core.session.FileScanner')
+    def test_search_code_keyword(self, mock_scanner_class):
+        """Test search_code with a default keyword search."""
+        mock_scanner = mock_scanner_class.return_value
+        mock_scanner.search_in_files.return_value = {
+            "file2.py": [{"line": 1, "content": "important logic"}]
+        }
+        self.ollama_client.generate.return_value = "Found something important"
+
+        result = self.session.search_code("Find important logic")
+
+        assert result == "Found something important"
+        mock_scanner.search_in_files.assert_called_once_with("important")
+        call_args = self.ollama_client.generate.call_args
+        assert "Search results for 'important':" in call_args[1]['context']
 
     def test_get_file_context_existing_file(self):
         """Test _get_file_context with existing file."""
