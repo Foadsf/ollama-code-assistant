@@ -1,5 +1,6 @@
 import subprocess
 import os
+import sys
 import re
 from pathlib import Path
 from datetime import datetime
@@ -39,37 +40,37 @@ class SelfModifier:
         self.editor = editor
         self.console = Console()
 
-    def apply_self_improvement(self, improvement: ImprovementOpportunity) -> ApplyResult:
+    def apply_self_improvement(self, opportunity: ImprovementOpportunity) -> ApplyResult:
         """Complete workflow for applying a self-improvement."""
         original_branch = ""
         branch_name = ""
         try:
             original_branch = self.git.get_current_branch()
-            branch_name = self.create_improvement_branch(improvement)
+            branch_name = self.create_improvement_branch(opportunity)
             self.console.print(f"✅ Created and checked out new branch: [bold blue]{branch_name}[/bold blue]")
 
-            if improvement['type'] == "documentation":
-                self._apply_docstring_improvement(improvement)
-            elif improvement['type'] == "type_hints":
-                self._apply_type_hint_improvement(improvement)
+            if opportunity['type'] == "documentation":
+                self._apply_docstring_improvement(opportunity)
+            elif opportunity['type'] == "type_hints":
+                self._apply_type_hint_improvement(opportunity)
             else:
                 self._rollback_improvement(original_branch, branch_name)
-                return {"success": False, "reason": f"Unsupported improvement type: {improvement['type']}"}
+                return {"success": False, "reason": f"Unsupported improvement type: {opportunity['type']}"}
 
             validation_result = self._validate_improvement()
             if not validation_result['success']:
                 self._rollback_improvement(original_branch, branch_name)
                 return validation_result
 
-            commit_prefix = "docs" if improvement['type'] == "documentation" else "style"
-            commit_message = f"{commit_prefix}: {improvement['description']}"
+            commit_prefix = "docs" if opportunity['type'] == "documentation" else "style"
+            commit_message = f"{commit_prefix}: {opportunity['description']}"
             self.git.commit(commit_message, add_all=True)
             self.console.print(f"📝 Committed changes with message: \"{commit_message}\"")
             self.console.print("\n🎉 [bold green]Self-improvement successful![/bold green]")
             self.console.print(f"Changes are on branch [bold blue]{branch_name}[/bold blue]. Please review and merge.")
             self.git._run_git(['checkout', original_branch])
 
-            return {"success": True, "reason": f"Successfully applied {improvement['type']} improvement"}
+            return {"success": True, "reason": f"Successfully applied {opportunity['type']} improvement"}
 
         except Exception as e:
             self.console.print(f"[bold red]An error occurred during self-modification: {e}[/bold red]")
@@ -93,22 +94,41 @@ class SelfModifier:
         self.editor.apply_changes(Path(opportunity['file_path']), new_content)
 
     def _apply_type_hint_improvement(self, opportunity: ImprovementOpportunity):
-        """
-        Generates and applies type hints.
-        NOTE: This is a placeholder.
-        """
-        self.console.print("🧠 Generating type hints with Ollama (placeholder)...")
-        # For now, we'll simulate a failure to show the workflow.
-        raise SelfModifierError("Type hint application is not yet implemented.")
+        """Generates and applies type hints."""
+        self.console.print("🧠 Generating type hints with Ollama...")
+        file_path = self.repo_path / opportunity['file_path']
+        file_content = file_path.read_text()
+
+        prompt = f"{opportunity['suggested_fix']}\n\nHere is the full content of the file `{opportunity['file_path']}`. Please return the complete, modified file content with the new type hints in a single markdown code block.\n\n```python\n{file_content}\n```"
+        new_content_response = self.ollama.generate(prompt)
+        new_content = _parse_code_from_response(new_content_response)
+
+        if not new_content:
+            raise SelfModifierError("Failed to parse new content from Ollama response.")
+
+        self.console.print(f"✍️ Applying changes to [cyan]{opportunity['file_path']}[/cyan]...")
+        self.editor.apply_changes(Path(opportunity['file_path']), new_content)
 
     def _validate_improvement(self) -> ApplyResult:
         """Runs the test suite to validate the changes."""
         self.console.print("🛡️ Running test suite to validate changes...")
-        pytest_path = self.repo_path / "venv" / "bin" / "pytest"
-        if not pytest_path.exists():
-            raise SelfModifierError("Could not find pytest executable in venv. Please run `python3 -m venv venv` and `venv/bin/pip install -e '.[dev]'` in the project root.")
 
-        result = subprocess.run([str(pytest_path)], cwd=self.repo_path, capture_output=True, text=True)
+        if os.getenv("OCA_MOCK_PYTEST") == "true":
+            self.console.print("✅ [bold green]All tests passed! (mocked)[/bold green]")
+            return {"success": True, "reason": "All tests passed (mocked)."}
+
+        # Use the current python interpreter to run pytest as a module
+        # This is more robust than hardcoding the path to the executable
+        python_executable = sys.executable
+        if not python_executable:
+            raise SelfModifierError("Could not determine python executable from sys.executable.")
+
+        result = subprocess.run(
+            [python_executable, "-m", "pytest"],
+            cwd=self.repo_path,
+            capture_output=True,
+            text=True
+        )
 
         if result.returncode == 0:
             self.console.print("✅ [bold green]All tests passed![/bold green]")

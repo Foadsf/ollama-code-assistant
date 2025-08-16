@@ -45,28 +45,37 @@ class SelfImprover:
             if improvement_type:
                 opportunities = [opp for opp in opportunities if opp['type'] == improvement_type]
 
-            selected_opportunities = self.ui.present_opportunities(opportunities)
+            if not opportunities:
+                self.console.print("✅ No improvement opportunities found.")
+                return
+
+            if auto:
+                selected_opportunities = [opportunities[0]]
+                self.console.print(f"🤖 Auto-selecting highest priority task: [bold yellow]'{opportunities[0]['description']}'[/bold yellow]")
+            else:
+                selected_opportunities = self.ui.present_opportunities(opportunities)
 
             if not selected_opportunities:
+                self.console.print("No improvements selected. Exiting.")
                 return
 
             if dry_run:
-                self.console.print("\n--dry-run enabled. No changes will be made.")
-                return
-
-            if not auto and selected_opportunities:
-                 pass
-            elif auto and opportunities:
-                selected_opportunities = [opportunities[0]]
-            else:
+                self.console.print("\n--dry-run enabled. Would apply the following changes:")
+                self.ui.present_opportunities(selected_opportunities, is_dry_run=True)
                 return
 
             for opp in selected_opportunities:
                 self.console.print(f"\n🤖 Applying improvement [bold yellow]'{opp['description']}'[/bold yellow]...")
+
+                import time
+                start_time = time.time()
+
                 result = self.modifier.apply_self_improvement(opp)
 
+                execution_time = time.time() - start_time
+
                 # Record the attempt in memory
-                self.memory.record_improvement_attempt(opp, result)
+                self.memory.record_improvement_attempt(opp, result, execution_time)
 
                 if not result['success']:
                     self.console.print(f"\n[bold red]Self-improvement failed: {result['reason']}[/bold red]")

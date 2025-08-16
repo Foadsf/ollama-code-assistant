@@ -33,7 +33,7 @@ def test_record_improvement_attempt(memory_system):
         with patch('oca.core.memory.datetime') as mock_datetime:
             mock_datetime.now.return_value.isoformat.return_value = "2024-01-01T12:00:00"
 
-            memory_system.record_improvement_attempt(opportunity, result)
+            memory_system.record_improvement_attempt(opportunity, result, execution_time=1.2345)
 
     # Assert that open was called with the correct file and mode
     mocked_file.assert_called_once_with(memory_system.memory_file, 'a')
@@ -54,6 +54,7 @@ def test_record_improvement_attempt(memory_system):
     assert record["file_path"] == "file.py"
     assert record["success"] is True
     assert record["reason"] == "All tests passed."
+    assert record["execution_time"] == 1.2345
 
 def test_get_success_patterns(memory_system):
     """Test the success pattern analysis."""

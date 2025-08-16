@@ -56,16 +56,7 @@ class CodeEditor:
             raise EditorError(f"Backup failed: {e}")
 
         # 3. Apply the changes
-        try:
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(new_content)
-        except IOError as e:
-            # If writing fails, try to restore from backup
-            try:
-                self.backup_manager.restore_backup(backup_path, full_path)
-            except BackupError as restore_e:
-                raise EditorError(f"Failed to write to file {full_path} and also failed to restore backup: {restore_e}")
-            raise EditorError(f"Failed to write to file {full_path} but restored from backup: {e}")
+        full_path.write_text(new_content, encoding="utf-8")
 
         return True
 

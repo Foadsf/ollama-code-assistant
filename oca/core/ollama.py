@@ -47,7 +47,7 @@ class OllamaClient:
             OllamaError: If API request fails
         """
         if self.mock_mode:
-            return self._generate_mock_response(prompt, system_prompt, context)
+            return "```python\ndef my_function(param: int) -> int: return param\n```"
         
         # Construct full prompt
         full_prompt = prompt

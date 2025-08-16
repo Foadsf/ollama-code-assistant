@@ -28,8 +28,9 @@ def test_run_improvement_cycle_auto_mode(improver):
 
     improver.run_improvement_cycle(auto=True, improvement_type=None, dry_run=False)
 
+    from unittest.mock import ANY
     improver.modifier.apply_self_improvement.assert_called_once_with(mock_opportunity)
-    improver.memory.record_improvement_attempt.assert_called_once_with(mock_opportunity, mock_result)
+    improver.memory.record_improvement_attempt.assert_called_once_with(mock_opportunity, mock_result, ANY)
 
 def test_run_improvement_cycle_no_opportunities(improver):
     """Test the cycle when no opportunities are found."""
@@ -53,8 +54,9 @@ def test_run_improvement_cycle_interactive_mode(improver):
 
     improver.run_improvement_cycle(auto=False, improvement_type=None, dry_run=False)
 
+    from unittest.mock import ANY
     improver.modifier.apply_self_improvement.assert_called_once_with(mock_opportunity1)
-    improver.memory.record_improvement_attempt.assert_called_once_with(mock_opportunity1, mock_result)
+    improver.memory.record_improvement_attempt.assert_called_once_with(mock_opportunity1, mock_result, ANY)
 
 def test_run_improvement_cycle_prioritization(improver):
     """Test that opportunities are correctly prioritized based on success rates."""

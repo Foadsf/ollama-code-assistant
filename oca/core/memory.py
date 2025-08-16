@@ -14,6 +14,7 @@ class ImprovementAttempt(TypedDict):
     file_path: str
     success: bool
     reason: str
+    execution_time: float
 
 class MemorySystem:
     """Persistent learning and experience storage for OCA."""
@@ -22,7 +23,7 @@ class MemorySystem:
         self.memory_file = memory_file
         self.memory_file.parent.mkdir(exist_ok=True, parents=True)
 
-    def record_improvement_attempt(self, opportunity: ImprovementOpportunity, result: ApplyResult) -> None:
+    def record_improvement_attempt(self, opportunity: ImprovementOpportunity, result: ApplyResult, execution_time: float) -> None:
         """Record detailed outcome of an improvement attempt."""
         record: ImprovementAttempt = {
             "timestamp": datetime.now().isoformat(),
@@ -31,6 +32,7 @@ class MemorySystem:
             "file_path": opportunity['file_path'],
             "success": result['success'],
             "reason": result['reason'],
+            "execution_time": round(execution_time, 4),
         }
 
         try:
