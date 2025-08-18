@@ -5,56 +5,46 @@ import requests
 from typing import Dict, Any, Optional
 import json
 
+from oca.utils.config import get_config_value
+
 
 class OllamaError(Exception):
     """Ollama API error."""
     pass
 
 
-def get_model(api_url: str = "http://localhost:11434") -> str:
-    """
-    Determines the best available Ollama model.
-    Priority:
-    1. OCA_MODEL environment variable
-    2. 'qwen2:7b' if available
-    3. 'deepseek-coder:6.7b' if available
-    4. 'codellama:7b' as a fallback
-    """
-    model = os.environ.get('OCA_MODEL')
-    if model:
-        return model
-
-    try:
-        response = requests.get(f"{api_url.rstrip('/')}/api/tags", timeout=5)
-        response.raise_for_status()
-        models = [m.get("name") for m in response.json().get("models", [])]
-        
-        for preference in ['qwen2:7b', 'deepseek-coder:6.7b', 'codellama:7b']:
-            if preference in models:
-                return preference
-    except (requests.exceptions.RequestException, json.JSONDecodeError):
-        pass  # Fallback to default if unable to fetch models
-
-    return 'codellama:7b'
-
-
 class OllamaClient:
     """Client for interacting with Ollama API."""
     
-    def __init__(self, model: Optional[str] = None, api_url: str = "http://localhost:11434",
-                 timeout: int = 180, max_tokens: int = 4096) -> None:  # Increased default timeout
-        """Initialize Ollama client. 
+    def __init__(self, model: Optional[str] = None, api_url: Optional[str] = None,
+                 timeout: Optional[int] = None, max_tokens: Optional[int] = None) -> None:
+        """Initialize Ollama client.
         
+        Configuration is resolved with the following priority:
+        1. Arguments passed to the constructor.
+        2. Values from the .oca/config.yaml file.
+        3. Environment variables (for model only: OCA_MODEL).
+        4. Hardcoded defaults.
+
         Args:
-            model: Model name to use. If None, will be auto-detected.
-            api_url: Ollama API URL
-            timeout: Request timeout in seconds (default 180s for slow responses)
-            max_tokens: Maximum tokens in response
+            model: Model name to use.
+            api_url: Ollama API URL.
+            timeout: Request timeout in seconds.
+            max_tokens: Maximum tokens in response.
         """
-        self.api_url = api_url.rstrip('/')
-        self.model = model or get_model(self.api_url)
-        self.timeout = timeout
-        self.max_tokens = max_tokens
+        # Determine configuration values with priority
+        self.api_url = (api_url or get_config_value('ollama.api_url', 'http://localhost:11434')).rstrip('/')
+        self.timeout = timeout or get_config_value('ollama.timeout', 180)
+        self.max_tokens = max_tokens or get_config_value('ollama.max_tokens', 4096)
+
+        # Model selection priority
+        if model:
+            self.model = model
+        elif os.environ.get('OCA_MODEL'):
+            self.model = os.environ.get('OCA_MODEL')
+        else:
+            self.model = get_config_value('ollama.model', 'qwen2:7b')
+
         self.mock_mode = os.getenv('OCA_MOCK_OLLAMA', 'false').lower() == 'true'
         self.debug_mode = os.getenv('OCA_DEBUG', 'false').lower() == 'true'
     
