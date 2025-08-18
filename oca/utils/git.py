@@ -1,7 +1,6 @@
 """Git operations wrapper for OCA."""
 
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
@@ -74,38 +73,6 @@ class GitWrapper:
         """Get the current branch name."""
         result = self._run_git(['branch', '--show-current'])
         return result.stdout.strip()
-    
-    def create_worktree(self, worktree_path: Path, branch_name: str, 
-                       base_branch: Optional[str] = None) -> None:
-        """Create a new Git worktree.
-        
-        Args:
-            worktree_path: Path for the new worktree
-            branch_name: Name of the new branch
-            base_branch: Base branch for the new branch (defaults to current)
-        """
-        if worktree_path.exists():
-            raise GitError(f"Worktree path already exists: {worktree_path}")
-            
-        # Create new branch and worktree
-        args = ['worktree', 'add', '-b', branch_name, str(worktree_path)]
-        if base_branch:
-            args.append(base_branch)
-        
-        self._run_git(args)
-    
-    def remove_worktree(self, worktree_path: Path, force: bool = False) -> None:
-        """Remove a Git worktree.
-        
-        Args:
-            worktree_path: Path to the worktree to remove
-            force: Force removal even if worktree is dirty
-        """
-        args = ['worktree', 'remove', str(worktree_path)]
-        if force:
-            args.append('--force')
-        
-        self._run_git(args)
     
     def list_worktrees(self) -> List[dict]:
         """List all worktrees.

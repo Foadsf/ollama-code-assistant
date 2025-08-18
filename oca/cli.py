@@ -10,8 +10,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt
 
-from .core.session import SessionManager
+from .core.session import SessionManager, SessionError
 from .core.self_improver import SelfImprover
+from .utils.git_safe import GitSafeError # New import
 
 
 def _parse_code_from_response(response: str) -> Optional[str]:
@@ -76,21 +77,39 @@ def explain(ctx: click.Context, prompt: str, file: Optional[str]) -> None:
     )
     
     try:
+        if file:
+            full_file_path = Path(file)
+            if not full_file_path.is_absolute():
+                full_file_path = Path.cwd() / full_file_path
+            if not full_file_path.exists():
+                click.echo(f"✗ Error: File not found: {file}", err=True)
+                raise click.Abort()
+            if not full_file_path.is_file():
+                click.echo(f"✗ Error: Path is not a file: {file}", err=True)
+                raise click.Abort()
+
         with session_manager.create_session() as session:
             result = session.explain(prompt, target_file=file)
             click.echo(result)
+    except SessionError as e:
+        click.echo(f"✗ Error during session: {e}", err=True)
+        raise click.Abort()
     except Exception as e:
-        click.echo(f"✗ Error: {e}", err=True)
+        click.echo(f"✗ An unexpected error occurred: {e}", err=True)
         raise click.Abort()
 
 
 @cli.command()
-@click.argument('prompt')
+@click.argument('prompt', required=False)
 @click.option('--error', help='Specific error message to fix')
 @click.option('--file', help='Specific file to fix')
 @click.pass_context
-def fix(ctx: click.Context, prompt: str, error: Optional[str], file: Optional[str]) -> None:
+def fix(ctx: click.Context, prompt: Optional[str], error: Optional[str], file: Optional[str]) -> None:
     """Fix bugs or issues in code."""
+    if not prompt and not error:
+        click.echo("✗ Error: Either PROMPT or --error must be provided.", err=True)
+        raise click.Abort()
+
     session_manager = SessionManager(
         verbose=ctx.obj['verbose'],
         model=ctx.obj['model'],
@@ -100,21 +119,39 @@ def fix(ctx: click.Context, prompt: str, error: Optional[str], file: Optional[st
     )
     
     try:
+        if file:
+            full_file_path = Path(file)
+            if not full_file_path.is_absolute():
+                full_file_path = Path.cwd() / full_file_path
+            if not full_file_path.exists():
+                click.echo(f"✗ Error: File not found: {file}", err=True)
+                raise click.Abort()
+            if not full_file_path.is_file():
+                click.echo(f"✗ Error: Path is not a file: {file}", err=True)
+                raise click.Abort()
+
         with session_manager.create_session() as session:
-            result = session.fix(prompt, error_message=error, target_file=file)
+            result = session.fix(prompt or "", error_message=error, target_file=file) # Pass empty string if prompt is None
             click.echo(result)
+    except SessionError as e:
+        click.echo(f"✗ Error during session: {e}", err=True)
+        raise click.Abort()
     except Exception as e:
-        click.echo(f"✗ Error: {e}", err=True)
+        click.echo(f"✗ An unexpected error occurred: {e}", err=True)
         raise click.Abort()
 
 
 @cli.command()
-@click.argument('prompt')
+@click.argument('prompt', required=False)
 @click.option('--pattern', help='Specific pattern to refactor')
 @click.option('--file', help='Specific file to refactor')
 @click.pass_context
-def refactor(ctx: click.Context, prompt: str, pattern: Optional[str], file: Optional[str]) -> None:
+def refactor(ctx: click.Context, prompt: Optional[str], pattern: Optional[str], file: Optional[str]) -> None:
     """Refactor code."""
+    if not prompt and not pattern:
+        click.echo("✗ Error: Either PROMPT or --pattern must be provided.", err=True)
+        raise click.Abort()
+
     session_manager = SessionManager(
         verbose=ctx.obj['verbose'],
         model=ctx.obj['model'],
@@ -124,11 +161,25 @@ def refactor(ctx: click.Context, prompt: str, pattern: Optional[str], file: Opti
     )
     
     try:
+        if file:
+            full_file_path = Path(file)
+            if not full_file_path.is_absolute():
+                full_file_path = Path.cwd() / full_file_path
+            if not full_file_path.exists():
+                click.echo(f"✗ Error: File not found: {file}", err=True)
+                raise click.Abort()
+            if not full_file_path.is_file():
+                click.echo(f"✗ Error: Path is not a file: {file}", err=True)
+                raise click.Abort()
+
         with session_manager.create_session() as session:
-            result = session.refactor(prompt, pattern=pattern, target_file=file)
+            result = session.refactor(prompt or "", pattern=pattern, target_file=file) # Pass empty string if prompt is None
             click.echo(result)
+    except SessionError as e:
+        click.echo(f"✗ Error during session: {e}", err=True)
+        raise click.Abort()
     except Exception as e:
-        click.echo(f"✗ Error: {e}", err=True)
+        click.echo(f"✗ An unexpected error occurred: {e}", err=True)
         raise click.Abort()
 
 
@@ -149,11 +200,23 @@ def test(ctx: click.Context, prompt: str, coverage: bool, style: Optional[str], 
     )
     
     try:
+        if file:
+            full_file_path = Path(file)
+            if not full_file_path.is_absolute():
+                full_file_path = Path.cwd() / full_file_path
+            if not full_file_path.exists():
+                click.echo(f"✗ Error: File not found: {file}", err=True)
+                raise click.Abort()
+            # For test, it might be a directory, so no is_file() check here
+
         with session_manager.create_session() as session:
             result = session.generate_tests(prompt, coverage=coverage, style=style, target_file=file)
             click.echo(result)
+    except SessionError as e:
+        click.echo(f"✗ Error during session: {e}", err=True)
+        raise click.Abort()
     except Exception as e:
-        click.echo(f"✗ Error: {e}", err=True)
+        click.echo(f"✗ An unexpected error occurred: {e}", err=True)
         raise click.Abort()
 
 
@@ -175,8 +238,11 @@ def commit(ctx: click.Context, message: Optional[str], commit_type: Optional[str
         with session_manager.create_session() as session:
             result = session.create_commit(message=message, commit_type=commit_type)
             click.echo(result)
+    except SessionError as e:
+        click.echo(f"✗ Error during session: {e}", err=True)
+        raise click.Abort()
     except Exception as e:
-        click.echo(f"✗ Error: {e}", err=True)
+        click.echo(f"✗ An unexpected error occurred: {e}", err=True)
         raise click.Abort()
 
 
@@ -199,8 +265,11 @@ def search(ctx: click.Context, prompt: str, regex: Optional[str], search_type: O
         with session_manager.create_session() as session:
             result = session.search_code(prompt, regex=regex, search_type=search_type)
             click.echo(result)
+    except SessionError as e:
+        click.echo(f"✗ Error during session: {e}", err=True)
+        raise click.Abort()
     except Exception as e:
-        click.echo(f"✗ Error: {e}", err=True)
+        click.echo(f"✗ An unexpected error occurred: {e}", err=True)
         raise click.Abort()
 
 
@@ -237,7 +306,7 @@ def test_ollama(ctx: click.Context) -> None:
     """Test connection to Ollama."""
     from .core.ollama import OllamaClient
     
-    model = ctx.obj.get('model') or 'codellama'
+    model = ctx.obj.get('model')
     client = OllamaClient(model=model)
     
     console = Console()

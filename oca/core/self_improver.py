@@ -17,7 +17,7 @@ class SelfImprover:
         self.root_path = root_path
         self.console = Console()
         self.analyzer = SelfAnalyzer(self.root_path)
-        ollama = OllamaClient(model=model_name or 'codellama')
+        ollama = OllamaClient(model=model_name or 'qwen2:7b')
         editor = CodeEditor(root_path=self.root_path)
         self.modifier = SelfModifier(repo_path=self.root_path, ollama=ollama, editor=editor)
         self.ui = ImprovementUI()

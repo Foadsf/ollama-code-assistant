@@ -11,21 +11,48 @@ class OllamaError(Exception):
     pass
 
 
+def get_model(api_url: str = "http://localhost:11434") -> str:
+    """
+    Determines the best available Ollama model.
+    Priority:
+    1. OCA_MODEL environment variable
+    2. 'qwen2:7b' if available
+    3. 'deepseek-coder:6.7b' if available
+    4. 'codellama:7b' as a fallback
+    """
+    model = os.environ.get('OCA_MODEL')
+    if model:
+        return model
+
+    try:
+        response = requests.get(f"{api_url.rstrip('/')}/api/tags", timeout=5)
+        response.raise_for_status()
+        models = [m.get("name") for m in response.json().get("models", [])]
+        
+        for preference in ['qwen2:7b', 'deepseek-coder:6.7b', 'codellama:7b']:
+            if preference in models:
+                return preference
+    except (requests.exceptions.RequestException, json.JSONDecodeError):
+        pass  # Fallback to default if unable to fetch models
+
+    return 'codellama:7b'
+
+
 class OllamaClient:
     """Client for interacting with Ollama API."""
     
-    def __init__(self, model: str = "codellama", api_url: str = "http://localhost:11434",
+    def __init__(self, model: Optional[str] = None, api_url: str = "http://localhost:11434",
                  timeout: int = 180, max_tokens: int = 4096) -> None:  # Increased default timeout
-        """Initialize Ollama client.
+        """Initialize Ollama client. 
         
         Args:
-            model: Model name to use
+            model: Model name to use. If None, will be auto-detected.
             api_url: Ollama API URL
             timeout: Request timeout in seconds (default 180s for slow responses)
             max_tokens: Maximum tokens in response
         """
-        self.model = model
         self.api_url = api_url.rstrip('/')
+        self.model = model or get_model(self.api_url)
         self.timeout = timeout
         self.max_tokens = max_tokens
         self.mock_mode = os.getenv('OCA_MOCK_OLLAMA', 'false').lower() == 'true'
@@ -33,7 +60,7 @@ class OllamaClient:
     
     def generate(self, prompt: str, system_prompt: Optional[str] = None,
                  context: Optional[str] = None) -> str:
-        """Generate response using Ollama.
+        """Generate response using Ollama. 
         
         Args:
             prompt: User prompt
@@ -140,7 +167,7 @@ class OllamaClient:
     
     def _generate_mock_response(self, prompt: str, system_prompt: Optional[str] = None,
                                context: Optional[str] = None) -> str:
-        """Generate mock response for testing.
+        """Generate mock response for testing. 
         
         Args:
             prompt: User prompt
@@ -155,7 +182,7 @@ class OllamaClient:
         # Mock responses based on command type
         if "explain" in prompt_lower or "what does" in prompt_lower:
             if context and "def hello" in context:
-                return """This code defines a simple `hello()` function that prints "Hello, World!" to the console. 
+                return """This code defines a simple `hello()` function that prints \"Hello, World!\" to the console. 
 
 **Function breakdown:**
 - `def hello():` - Defines a function named 'hello' with no parameters
@@ -232,9 +259,9 @@ from unittest.mock import Mock, patch
 
 class TestModule:
     def test_basic_functionality(self):
-        \"\"\"Test basic function behavior.\"\"\"
+        \"\"\"Test basic function behavior.\"\"\
         # Arrange
-        expected_result = "expected_value"
+        expected_result = \"expected_value\"
         
         # Act
         result = function_under_test()
@@ -243,14 +270,14 @@ class TestModule:
         assert result == expected_result
     
     def test_edge_cases(self):
-        \"\"\"Test edge cases and error conditions.\"\"\"
+        \"\"\"Test edge cases and error conditions.\"\"\" 
         with pytest.raises(ValueError):
             function_under_test(invalid_input)
     
     def test_with_mocks(self):
-        \"\"\"Test with mocked dependencies.\"\"\"
+        \"\"\"Test with mocked dependencies.\"\"\" 
         with patch('module.dependency') as mock_dep:
-            mock_dep.return_value = "mocked_value"
+            mock_dep.return_value = \"mocked_value\"
             result = function_under_test()
             assert result is not None
 ```
@@ -302,8 +329,7 @@ For more specific searches, try using regex patterns or specifying the search ty
         else:
             return f"""**AI Assistant Response:**
 
-I understand you're asking about: "{prompt}"
-
+I understand you're asking about: \"{prompt}\"\n
 Based on the context provided, I can help you with code analysis, bug fixes, refactoring suggestions, test generation, and codebase searches. 
 
 **What I can do:**
@@ -317,7 +343,7 @@ Based on the context provided, I can help you with code analysis, bug fixes, ref
 Please provide more specific details about what you'd like me to help you with."""
     
     def list_models(self) -> list:
-        """List available models.
+        """List available models. 
         
         Returns:
             List of available models
@@ -346,7 +372,7 @@ Please provide more specific details about what you'd like me to help you with."
             raise OllamaError(f"Invalid response from Ollama: {e}")
     
     def is_available(self) -> bool:
-        """Check if Ollama is available.
+        """Check if Ollama is available. 
         
         Returns:
             True if Ollama is available, False otherwise
@@ -361,7 +387,7 @@ Please provide more specific details about what you'd like me to help you with."
             return False
     
     def test_connection(self) -> Dict[str, Any]:
-        """Test connection to Ollama and return detailed information.
+        """Test connection to Ollama and return detailed information. 
         
         Returns:
             Dictionary with connection test results
