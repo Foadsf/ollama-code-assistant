@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ollama-code-assistant"
+name = "ollama"
 version = "0.1.0"
 description = "A free and open-source CLI tool for AI-assisted coding using Ollama"
 readme = "README.md"
@@ -41,12 +41,12 @@ dev = [
 ]
 
 [project.scripts]
-oca = "oca.cli:main"
+ollama = "oca.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/ollama-code-assistant"
-Repository = "https://github.com/yourusername/ollama-code-assistant"
-Issues = "https://github.com/yourusername/ollama-code-assistant/issues"
+Homepage = "https://github.com/Foadsf/ollama-code-assistant"
+Repository = "https://github.com/Foadsf/ollama-code-assistant"
+Issues = "https://github.com/Foadsf/ollama-code-assistant/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
