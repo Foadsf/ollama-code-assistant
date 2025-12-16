@@ -13,7 +13,7 @@ import click
 from ..utils.git import GitWrapper, GitError
 from ..utils.git_safe import SafeGitWorktree, GitSafeError
 from ..utils.files import FileScanner
-from .ollama import OllamaClient, OllamaError, get_model
+from .ollama import OllamaClient, OllamaError
 from .gemini_adapter import GeminiAdapter
 from .editor import CodeEditor, EditorError
 from .context import ContextAnalyzer 
@@ -400,7 +400,7 @@ class SessionManager:
         oca_dir = self.cwd / ".oca"
         oca_dir.mkdir(exist_ok=True)
         config = {
-            'ollama': {'model': model or self.model or get_model(), 'api_url': 'http://localhost:11434', 'timeout': 180, 'max_tokens': 4096},
+            'ollama': {'model': model or self.model or 'qwen2:7b', 'api_url': 'http://localhost:11434', 'timeout': 180, 'max_tokens': 4096},
             'git': {'branch_prefix': 'oca', 'auto_commit': True, 'commit_style': 'conventional'},
             'safety': {'max_file_size': '10MB', 'allowed_extensions': ['.py', '.js', '.ts'], 'ignore_patterns': ['*.pyc', '__pycache__', 'node_modules', '.git']},
             'logging': {'level': 'INFO', 'file': '.oca/session.log'}
