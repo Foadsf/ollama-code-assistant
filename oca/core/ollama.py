@@ -412,34 +412,33 @@ Please provide more specific details about what you'd like me to help you with."
         start_time = time.time()
         
         try:
-            print(f"🔍 Testing connection to {self.api_url}")
+            print(f"Testing connection to {self.api_url}")
             
             # Test /api/tags endpoint
             tags_url = f"{self.api_url}/api/tags"
-            print(f"📡 Testing endpoint: {tags_url}")
             
             response = requests.get(tags_url, timeout=10)
             result["response_time"] = time.time() - start_time
             
-            print(f"📊 Status Code: {response.status_code}")
-            print(f"📄 Response Headers: {dict(response.headers)}")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response Headers: {dict(response.headers)}")
             
             if response.status_code == 200:
                 result["connected"] = True
                 try:
                     data = response.json()
                     result["models"] = [model.get("name", "unknown") for model in data.get("models", [])]
-                    print(f"✅ Available models: {result['models']}")
+                    print(f"Available models: {result['models']}")
                 except json.JSONDecodeError as e:
-                    print(f"⚠️  Could not parse JSON: {e}")
-                    print(f"📄 Raw response: {response.text}")
+                    print(f"Could not parse JSON: {e}")
+                    print(f"Raw response: {response.text}")
             else:
                 result["error"] = f"HTTP {response.status_code}: {response.text}"
-                print(f"❌ Connection failed: {result['error']}")
+                print(f"Connection failed: {result['error']}")
                 
         except requests.exceptions.RequestException as e:
             result["error"] = str(e)
             result["response_time"] = time.time() - start_time
-            print(f"🚨 Connection error: {e}")
+            print(f"Connection error: {e}")
         
         return result

@@ -310,30 +310,31 @@ def test_ollama(ctx: click.Context) -> None:
     client = OllamaClient(model=model)
     
     console = Console()
-    console.print("🔍 Testing Ollama connection...")
+    console.print("Testing Ollama connection...")
     result = client.test_connection()
     
     if result.get("connected"):
-        console.print(f"✅ Successfully connected to Ollama!")
-        console.print(f"📍 API URL: {result.get('api_url')}")
+        console.print(f"[+] Successfully connected to Ollama!")
+        console.print(f"    API URL: {result.get('api_url')}")
         if result.get('response_time'):
-            console.print(f"⏱️  Response time: {result.get('response_time'):.2f}s")
+            console.print(f"    Response time: {result.get('response_time'):.2f}s")
         if result.get('models'):
-            console.print(f"🤖 Available models: {', '.join(result.get('models'))}")
+            console.print(f"    Available models: {', '.join(result.get('models'))}")
         
         if ctx.obj.get('model') and result.get('models') and ctx.obj.get('model') not in result.get('models'):
-            console.print(f"⚠️  Warning: Requested model '{ctx.obj.get('model')}' not found!")
-            console.print(f"💡 Try one of: {', '.join(result.get('models'))}")
+            console.print(f"[!] Warning: Requested model '{ctx.obj.get('model')}' not found!")
+            console.print(f"    Try one of: {', '.join(result.get('models'))}")
     else:
-        console.print(f"❌ Failed to connect to Ollama")
-        console.print(f"📍 API URL: {result.get('api_url')}")
-        console.print(f"🚨 Error: {result.get('error')}")
+        console.print(f"[x] Failed to connect to Ollama")
+        console.print(f"    API URL: {result.get('api_url')}")
+        console.print(f"    Error: {result.get('error')}")
         
-        console.print("\n💡 Troubleshooting tips:")
+        console.print("\nTroubleshooting tips:")
         console.print("1. Make sure Ollama is running: ollama serve")
         console.print("2. Check if the API URL is correct")
         console.print("3. Verify firewall/network settings")
         console.print("4. Try: curl http://localhost:11434/api/tags")
+
 
 
 def main() -> None:
